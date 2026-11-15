@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  displayName  String   @map("display_name") @db.VarChar(100)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  driveConnection GoogleDriveConnection?
+  messageBoxes   MessageBox[]
+
+  @@map("users")
+}
+
+model GoogleDriveConnection {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @unique @map("user_id") @db.Uuid
+  googleAccountId       String   @map("google_account_id") @db.VarChar(255)
+  encryptedRefreshToken String   @map("encrypted_refresh_token") @db.Text
+  rootFolderId          String?  @map("root_folder_id") @db.VarChar(255)
+  status                String   @default("ACTIVE") @db.VarChar(20)
+  connectedAt           DateTime @default(now()) @map("connected_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageFiles MessageFile[]
+
+  @@map("google_drive_connections")
+}
+
+model MessageBox {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  publicSlug  String   @unique @map("public_slug") @db.VarChar(30)
+  status      String   @default("ACTIVE") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userId])
+  @@map("message_boxes")
+}
+
+model Message {
+  id         String    @id @default(uuid()) @db.Uuid
+  boxId      String    @map("box_id") @db.Uuid
+  senderName String    @map("sender_name") @db.VarChar(100)
+  content    String?   @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  box           MessageBox     @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  files         MessageFile[]
+  uploadSession UploadSession?
+
+  @@index([boxId, createdAt(sort: Desc)])
+  @@index([boxId, senderName])
+  @@map("messages")
+}
+
+model MessageFile {
+  id                String   @id @default(uuid()) @db.Uuid
+  messageId         String   @map("message_id") @db.Uuid
+  driveConnectionId String   @map("drive_connection_id") @db.Uuid
+  driveFileId       String?  @map("drive_file_id") @db.VarChar(255)
+  fileName          String   @map("file_name") @db.VarChar(255)
+  mimeType          String   @map("mime_type") @db.VarChar(100)
+  fileSize          BigInt   @map("file_size")
+  uploadStatus      String   @default("PENDING") @map("upload_status") @db.VarChar(20)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  message         Message               @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  driveConnection GoogleDriveConnection @relation(fields: [driveConnectionId], references: [id], onDelete: Restrict)
+
+  @@index([messageId])
+  @@map("message_files")
+}
+
+model UploadSession {
+  id             String   @id @default(uuid()) @db.Uuid
+  messageId      String?  @unique @map("message_id") @db.Uuid
+  status         String   @default("PENDING") @db.VarChar(20)
+  totalFiles     Int      @default(0) @map("total_files")
+  completedFiles Int      @default(0) @map("completed_files")
+  errorMessage   String?  @map("error_message") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([messageId])
+  @@map("upload_sessions")
+}

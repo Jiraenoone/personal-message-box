@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets (only .env.example is committed)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private data — NEVER commit
+# Local PostgreSQL data directory (contains real users and messages)
+pgdata/
+# Local dev attachment storage (real photos/videos sent to boxes)
+backend/uploads/
+backend/tmp/
+*.sql.gz
+*.dump
+
+# Build output
+dist/
+build/
+/generated/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# AI-assistant tooling (local only; contains machine-specific symlinks)
+.agents/
+.windsurf/
+.claude/
+skills-lock.json
+
+# Unused Prisma 7 scaffolding at repo root (the app uses backend/prisma)
+/package.json
+/package-lock.json
+/prisma7.config.ts
+/prisma/
+/.gitkeep
