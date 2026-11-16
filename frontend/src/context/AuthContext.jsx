@@ -8,10 +8,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check auth state on mount
-  const checkAuth = useCallback(async () => {
+  // Check auth state on mount.
+  // silent: refresh user data without the app-wide loading state — otherwise ProtectedRoute
+  // unmounts the current page and remounts it (which caused an infinite refresh loop).
+  const checkAuth = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const data = await authService.getMe();
       setUser(data.user);
@@ -26,6 +28,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  const refreshUserSilently = useCallback(() => checkAuth({ silent: true }), [checkAuth]);
 
   // Login handler
   const login = async (credentials) => {
@@ -73,7 +77,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
-    refreshUser: checkAuth,
+    refreshUser: refreshUserSilently,
     isAuthenticated: !!user,
   };
 

@@ -7,7 +7,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import ErrorMessage from '../components/common/ErrorMessage';
 
 export default function GoogleDrivePage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [statusData, setStatusData] = useState(null);
   const [error, setError] = useState('');
@@ -31,20 +31,28 @@ export default function GoogleDrivePage() {
 
   useEffect(() => {
     fetchStatus();
+  }, [fetchStatus]);
 
-    if (searchParams.get('connected') === 'true') {
+  // Handle the OAuth redirect result once, then drop it from the URL so it can't re-trigger
+  useEffect(() => {
+    const connected = searchParams.get('connected') === 'true';
+    const errorCode = searchParams.get('error');
+    if (!connected && !errorCode) return;
+
+    if (connected) {
       setSuccessMsg('🎉 Google Drive has been successfully connected!');
       refreshUser();
-    } else if (searchParams.get('error')) {
+    } else {
       const messages = {
         access_denied: 'You declined Google Drive access. Connect again and allow access to continue.',
         no_refresh_token: 'Google did not return offline access. Remove this app at myaccount.google.com/permissions, then connect again.',
         invalid_state: 'The connection request expired. Please try connecting again.',
         missing_code_or_state: 'The connection request was incomplete. Please try again.',
       };
-      setError(messages[searchParams.get('error')] || 'Could not connect Google Drive. Please try again.');
+      setError(messages[errorCode] || 'Could not connect Google Drive. Please try again.');
     }
-  }, [fetchStatus, searchParams, refreshUser]);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, refreshUser]);
 
   const handleConnectOAuth = async () => {
     try {
