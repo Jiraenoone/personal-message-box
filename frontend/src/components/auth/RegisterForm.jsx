@@ -5,6 +5,7 @@ import Input from '../common/Input';
 import Button from '../common/Button';
 import ErrorMessage from '../common/ErrorMessage';
 import { isValidEmail, isValidPassword } from '../../utils/validators';
+import GoogleSignInButton, { OrDivider } from './GoogleSignInButton';
 
 export default function RegisterForm() {
   const [displayName, setDisplayName] = useState('');
@@ -92,6 +93,12 @@ export default function RegisterForm() {
           <ErrorMessage message={serverError} />
         </div>
       )}
+
+      <GoogleSignInButton label="Sign up with Google" />
+      <p style={{ textAlign: 'center', fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)', marginTop: 'var(--spacing-sm)' }}>
+        Fastest: creates your account and connects Google Drive in one step
+      </p>
+      <OrDivider text="or sign up with email" />
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
         <Input

@@ -45,6 +45,7 @@ export default function GoogleDrivePage() {
     } else {
       const messages = {
         access_denied: 'You declined Google Drive access. Connect again and allow access to continue.',
+        drive_scope_missing: 'You are signed in, but Google Drive access was not granted. Click Connect and tick the Google Drive permission to receive photos and videos.',
         no_refresh_token: 'Google did not return offline access. Remove this app at myaccount.google.com/permissions, then connect again.',
         invalid_state: 'The connection request expired. Please try connecting again.',
         missing_code_or_state: 'The connection request was incomplete. Please try again.',

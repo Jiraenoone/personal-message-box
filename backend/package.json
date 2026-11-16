@@ -12,7 +12,8 @@
     "db:studio": "prisma studio",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "node prisma/seed.js",
-    "test:e2e": "node tests/api.e2e.mjs"
+    "test:e2e": "node tests/api.e2e.mjs",
+    "test:google": "node tests/google-signin.test.mjs"
   },
   "type": "module",
   "keywords": [],

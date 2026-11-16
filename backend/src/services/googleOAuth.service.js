@@ -1,12 +1,82 @@
+import crypto from 'crypto';
 import { google } from 'googleapis';
 import config from '../config/index.js';
 import { encrypt, decrypt } from './encryption.service.js';
 import logger from '../utils/logger.js';
 
+export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+// "Connect Google Drive" for an already signed-in user
 const SCOPES = [
-  'https://www.googleapis.com/auth/drive.file',
+  DRIVE_FILE_SCOPE,
   'https://www.googleapis.com/auth/userinfo.email',
 ];
+
+// "Sign in with Google": identity + Drive in one consent, so the account and
+// its Drive connection use the same Google account
+const SIGN_IN_SCOPES = ['openid', 'email', 'profile', DRIVE_FILE_SCOPE];
+
+// ── OAuth state (CSRF protection), shared by both flows ────────────
+// In-memory, single instance; entries expire after 10 minutes.
+const STATE_TTL_MS = 10 * 60 * 1000;
+const oauthStates = new Map();
+
+/** Create a random state value bound to flow data, e.g. { mode: 'login' } or { mode: 'connect', userId } */
+export function createState(data) {
+  const now = Date.now();
+  for (const [k, v] of oauthStates) if (now - v.createdAt > STATE_TTL_MS) oauthStates.delete(k);
+  const state = crypto.randomBytes(32).toString('hex');
+  oauthStates.set(state, { ...data, createdAt: now });
+  return state;
+}
+
+/** Return and delete the data for a state value (single use), or null if unknown/expired */
+export function consumeState(state) {
+  if (!state || typeof state !== 'string') return null;
+  const data = oauthStates.get(state);
+  oauthStates.delete(state);
+  if (!data || Date.now() - data.createdAt > STATE_TTL_MS) return null;
+  return data;
+}
+
+/**
+ * Authorization URL for "Sign in with Google".
+ * prompt=select_account normally; 'consent' when we need Google to re-issue a refresh token.
+ */
+export function getSignInUrl(state, { forceConsent = false } = {}) {
+  return createOAuth2Client().generateAuthUrl({
+    access_type: 'offline',
+    prompt: forceConsent ? 'consent' : 'select_account',
+    scope: SIGN_IN_SCOPES,
+    state,
+    include_granted_scopes: true,
+  });
+}
+
+/**
+ * Exchange a sign-in code: verifies the ID token and reports which scopes were granted.
+ * @returns {Promise<{ profile: { sub, email, emailVerified, name }, scopes: Set<string>, encryptedRefreshToken: string|null }>}
+ */
+export async function exchangeSignInCode(code) {
+  const client = createOAuth2Client();
+  const { tokens } = await client.getToken(code);
+  if (!tokens.id_token) throw new Error('Google did not return an ID token');
+
+  // Verifies signature, issuer, expiry and that the token was issued to OUR client ID
+  const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: config.google.clientId });
+  const p = ticket.getPayload();
+
+  return {
+    profile: {
+      sub: p.sub,
+      email: (p.email || '').toLowerCase(),
+      emailVerified: p.email_verified === true,
+      name: p.name || '',
+    },
+    scopes: new Set((tokens.scope || '').split(' ').filter(Boolean)),
+    encryptedRefreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : null,
+  };
+}
 
 /**
  * Check if real Google OAuth credentials have been provided
@@ -106,6 +176,10 @@ export function getAuthenticatedClient(encryptedRefreshToken) {
 export default {
   isConfigured,
   createOAuth2Client,
+  createState,
+  consumeState,
+  getSignInUrl,
+  exchangeSignInCode,
   getAuthUrl,
   getTokensFromCode,
   getAuthenticatedClient,

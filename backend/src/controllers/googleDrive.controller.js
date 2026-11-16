@@ -1,13 +1,11 @@
-import crypto from 'crypto';
 import config from '../config/index.js';
 import prisma from '../utils/prisma.js';
 import * as googleOAuth from '../services/googleOAuth.service.js';
 import * as googleDrive from '../services/googleDrive.service.js';
 import { sendSuccess } from '../utils/response.js';
 import logger from '../utils/logger.js';
+import { handleGoogleSignInCallback } from './auth.controller.js';
 
-// In-memory state store for OAuth CSRF protection (cleared after 10 mins)
-const oauthStates = new Map();
 
 /**
  * Initiate Google Drive OAuth connection
@@ -24,18 +22,8 @@ export async function connect(req, res, next) {
       });
     }
 
-    // Generate random state for CSRF protection
-    const state = crypto.randomBytes(32).toString('hex');
-    oauthStates.set(state, {
-      userId: req.user.id,
-      timestamp: Date.now(),
-    });
-
-    // Cleanup states older than 10 minutes
-    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    for (const [k, v] of oauthStates.entries()) {
-      if (v.timestamp < tenMinutesAgo) oauthStates.delete(k);
-    }
+    // Random single-use state bound to this user (CSRF protection)
+    const state = googleOAuth.createState({ mode: 'connect', userId: req.user.id });
 
     const authUrl = googleOAuth.getAuthUrl(state);
     return sendSuccess(res, { authUrl, isConfigured: true });
@@ -51,22 +39,29 @@ export async function connect(req, res, next) {
 export async function callback(req, res) {
   const { code, state, error } = req.query;
 
+  // One redirect URI serves both "Sign in with Google" and "Connect Drive"; the state says which
+  const storedState = googleOAuth.consumeState(state);
+  const isLogin = storedState?.mode === 'login';
+  const errorPage = isLogin ? '/login' : '/google-drive';
+
   if (error) {
     logger.warn('Google OAuth error callback:', { error });
-    const code = error === 'access_denied' ? 'access_denied' : 'connection_failed';
-    return res.redirect(`${config.frontendUrl}/google-drive?error=${code}`);
+    const reason = error === 'access_denied' ? 'access_denied' : 'connection_failed';
+    return res.redirect(`${config.frontendUrl}${errorPage}?error=${reason}`);
   }
 
   if (!code || !state) {
-    return res.redirect(`${config.frontendUrl}/google-drive?error=missing_code_or_state`);
+    return res.redirect(`${config.frontendUrl}${errorPage}?error=missing_code_or_state`);
   }
 
-  const storedState = oauthStates.get(state);
   if (!storedState) {
-    return res.redirect(`${config.frontendUrl}/google-drive?error=invalid_state`);
+    return res.redirect(`${config.frontendUrl}/login?error=invalid_state`);
   }
 
-  oauthStates.delete(state);
+  if (isLogin) {
+    return handleGoogleSignInCallback(req, res, code, storedState);
+  }
+
   const userId = storedState.userId;
 
   try {

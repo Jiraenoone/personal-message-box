@@ -6,8 +6,62 @@ import { AuthenticationError, ConflictError, NotFoundError } from '../utils/erro
 const BCRYPT_SALT_ROUNDS = 12;
 
 function sanitizeUser(user) {
-  const { passwordHash, ...sanitized } = user;
+  // eslint-disable-next-line no-unused-vars
+  const { passwordHash, googleId, ...sanitized } = user;
   return sanitized;
+}
+
+const PUBLIC_USER_SELECT = {
+  id: true,
+  email: true,
+  displayName: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+/**
+ * Find, link or create the app account for a verified Google profile.
+ * 1. Same Google account (googleId) → that user
+ * 2. Existing account with the same email → link Google to it (only if Google verified the email)
+ * 3. Otherwise → new passwordless account
+ * @param {{ sub: string, email: string, emailVerified: boolean, name: string }} profile
+ * @returns {Promise<{ user: object, token: string, created: boolean }>}
+ */
+export async function signInWithGoogle(profile) {
+  if (!profile.sub || !profile.email) {
+    throw new AuthenticationError('Google did not provide an email address');
+  }
+  if (!profile.emailVerified) {
+    // Linking by an unverified email would let someone take over another person's account
+    throw new AuthenticationError('Your Google email address is not verified');
+  }
+
+  let created = false;
+  let user = await prisma.user.findUnique({ where: { googleId: profile.sub }, select: PUBLIC_USER_SELECT });
+
+  if (!user) {
+    const byEmail = await prisma.user.findUnique({ where: { email: profile.email } });
+    if (byEmail) {
+      if (byEmail.googleId && byEmail.googleId !== profile.sub) {
+        throw new ConflictError('This email is already linked to a different Google account');
+      }
+      user = await prisma.user.update({
+        where: { id: byEmail.id },
+        data: { googleId: profile.sub },
+        select: PUBLIC_USER_SELECT,
+      });
+    } else {
+      const displayName = (profile.name || profile.email.split('@')[0]).trim().slice(0, 100) || 'User';
+      user = await prisma.user.create({
+        data: { email: profile.email, displayName, googleId: profile.sub, passwordHash: null },
+        select: PUBLIC_USER_SELECT,
+      });
+      created = true;
+    }
+  }
+
+  const token = generateToken({ id: user.id, email: user.email });
+  return { user, token, created };
 }
 
 /**
@@ -19,7 +73,7 @@ export async function register({ email, password, displayName }) {
   });
 
   if (existingUser) {
-    throw new ConflictError('An account with this email already exists');
+    throw new ConflictError('An account with this email already exists. Please sign in instead (or use "Continue with Google").');
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
@@ -63,6 +117,11 @@ export async function login({ email, password }) {
 
   if (!user) {
     throw new AuthenticationError('Invalid email or password');
+  }
+
+  // Account created with "Sign in with Google" — it has no password
+  if (!user.passwordHash) {
+    throw new AuthenticationError('This account uses Google sign-in. Please use "Continue with Google".');
   }
 
   const isMatch = await bcrypt.compare(password, user.passwordHash);

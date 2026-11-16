@@ -8,7 +8,9 @@ A full-stack web application that allows users to create personal message boxes 
 - **Backend**: Node.js + Express
 - **Database**: PostgreSQL + Prisma ORM
 - **Storage**: Google Drive API
-- **Auth**: JWT (httpOnly cookies) + bcrypt
+- **Auth**: "Continue with Google" (signs in/up **and** connects Google Drive in one consent),
+  or email + password (bcrypt). JWT in httpOnly cookies. A Google sign-in links to an existing
+  account with the same (Google-verified) email.
 
 > **Dev storage fallback:** when Google OAuth is not configured (or the owner's Drive connection is the
 > seeded mock), attachments are saved to `backend/uploads/` instead of Google Drive. This only applies
@@ -77,6 +79,9 @@ With the backend running (and seeded):
 cd backend
 npm run test:e2e
 ```
+
+`npm run test:google` tests the Google sign-in account logic (new account, linking by email,
+unverified-email and conflict protection) with simulated Google profiles.
 
 It creates and removes its own temporary boxes/user. The public submit limit is 10/min per IP,
 so wait a minute between runs.

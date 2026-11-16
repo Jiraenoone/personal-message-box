@@ -5,6 +5,7 @@ import Input from '../common/Input';
 import Button from '../common/Button';
 import ErrorMessage from '../common/ErrorMessage';
 import { isValidEmail } from '../../utils/validators';
+import GoogleSignInButton, { OrDivider, GOOGLE_LOGIN_ERRORS } from './GoogleSignInButton';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -18,6 +19,8 @@ export default function LoginForm() {
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/dashboard';
+  const googleErrorCode = new URLSearchParams(location.search).get('error');
+  const googleError = googleErrorCode ? (GOOGLE_LOGIN_ERRORS[googleErrorCode] || GOOGLE_LOGIN_ERRORS.google_failed) : '';
 
   const validate = () => {
     const errs = {};
@@ -70,14 +73,17 @@ export default function LoginForm() {
         </p>
       </div>
 
-      {serverError && (
+      {(serverError || googleError) && (
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-          <ErrorMessage message={serverError} />
+          <ErrorMessage message={serverError || googleError} />
         </div>
       )}
 
-      {/* Quick Test Login Helper */}
-      <div style={{
+      <GoogleSignInButton />
+      <OrDivider />
+
+      {/* Quick Test Login Helper — development only */}
+      {import.meta.env.DEV && <div style={{
         marginBottom: 'var(--spacing-lg)',
         padding: 'var(--spacing-sm) var(--spacing-md)',
         backgroundColor: '#EEF2FF',
@@ -102,7 +108,7 @@ export default function LoginForm() {
             ⚡ Auto-fill
           </button>
         </div>
-      </div>
+      </div>}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
         <Input
