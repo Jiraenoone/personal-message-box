@@ -1,11 +1,17 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// On Render, RENDER_EXTERNAL_URL is set automatically (e.g. https://my-app.onrender.com),
+// so a single-origin deploy works without setting FRONTEND_URL / BACKEND_URL by hand.
+const renderUrl = process.env.RENDER_EXTERNAL_URL;
+const frontendUrl = process.env.FRONTEND_URL || renderUrl || 'http://localhost:5173';
+const backendUrl = process.env.BACKEND_URL || renderUrl || 'http://localhost:3001';
+
 const config = {
   port: parseInt(process.env.PORT, 10) || 3001,
   nodeEnv: process.env.NODE_ENV || 'development',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-  backendUrl: process.env.BACKEND_URL || 'http://localhost:3001',
+  frontendUrl,
+  backendUrl,
   // Number of reverse proxies in front of the app (e.g. 1 behind Nginx/Render/Railway).
   // Needed so rate limiting sees the real client IP instead of the proxy's.
   trustProxy: parseInt(process.env.TRUST_PROXY, 10) || 0,
@@ -33,7 +39,7 @@ const config = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: process.env.GOOGLE_REDIRECT_URI,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || `${backendUrl}/api/google-drive/callback`,
   },
 
   encryption: {

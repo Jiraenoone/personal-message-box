@@ -1,0 +1,48 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# One web service (Express serves the API + built React app) and one PostgreSQL database.
+# Deploy: Render Dashboard → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: personal-message-box
+    runtime: node
+    plan: free
+    region: singapore
+    # --include=dev: NODE_ENV=production would otherwise skip vite and the prisma CLI
+    buildCommand: >-
+      cd frontend && npm ci --include=dev && npm run build &&
+      cd ../backend && npm ci --include=dev && npx prisma generate && npx prisma migrate deploy
+    startCommand: cd backend && npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_FRONTEND
+        value: "true"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: personal-message-box-db
+          property: connectionString
+      # Random secrets generated once by Render. Never change ENCRYPTION_KEY after first deploy
+      # (stored Google tokens would become unreadable).
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      # From Google Cloud Console → Credentials → OAuth client (asked for when the Blueprint is created)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # FRONTEND_URL / BACKEND_URL / GOOGLE_REDIRECT_URI default to Render's own URL
+      # (RENDER_EXTERNAL_URL). Set them only if you add a custom domain.
+
+databases:
+  - name: personal-message-box-db
+    plan: free
+    region: singapore
+    databaseName: personal_message_box

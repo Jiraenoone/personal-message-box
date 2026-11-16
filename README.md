@@ -86,7 +86,27 @@ unverified-email and conflict protection) with simulated Google profiles.
 It creates and removes its own temporary boxes/user. The public submit limit is 10/min per IP,
 so wait a minute between runs.
 
-## Deploying to Production
+## Deploying to Render (easiest)
+
+`render.yaml` is a Render Blueprint: it creates the web service and a PostgreSQL database,
+generates `JWT_SECRET` / `ENCRYPTION_KEY`, and builds + migrates on every push to `main`.
+The public URL (`https://<service>.onrender.com`) is picked up automatically from Render's
+`RENDER_EXTERNAL_URL`, so QR codes point to it without extra config.
+
+1. Push this repo to GitHub.
+2. Render Dashboard → **New → Blueprint** → choose the repo → enter `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET` when asked → **Apply**. Wait for the first deploy to go live.
+3. Google Cloud Console → your OAuth client → **Authorized redirect URIs**: add
+   `https://<service>.onrender.com/api/google-drive/callback`.
+   While the OAuth consent screen is in *Testing*, add your own Google account under
+   **Test users** (only the box owner signs in with Google; senders don't need an account).
+4. Open the site, sign up, connect Google Drive, create a box, and share its QR code.
+
+Free-plan caveats: the service sleeps after ~15 min idle (first visit then takes ~1 min), and
+the free database expires after 30 days — upgrade both plans for real use. Boxes created on
+your local machine are not copied; create them again on the deployed site.
+
+## Deploying to Production (any host)
 
 The simplest setup is **single-origin**: Express serves both the API and the built React app,
 so cookies, CORS and media streaming all work on one domain behind HTTPS.
